@@ -1,21 +1,25 @@
-"""
-QuadSim Python Client Library
-==============================
+# quadsim/__init__.py
+# QuadSim Python SDK
+#
+# Two-layer API:
+#   QuadSimApi    — High-level: takeoff(), fly_to(), hover(), land()
+#   QuadSimClient — Low-level:  send_command(), get_sensors(), set_mode()
+#
+# Usage:
+#   from quadsim import QuadSimApi
+#   with QuadSimApi() as api:
+#       api.takeoff(3.0)
+#       api.fly_to(10, 3, 0)
+#       api.land()
 
-Control the QuadSim drone simulator from Python.
+"""QuadSim Python SDK — research-oriented drone simulation control."""
 
-Quick start:
-    from quadsim import QuadSimClient
+__version__ = "0.10.0"
 
-    with QuadSimClient("localhost") as client:
-        client.set_mode("rate")
-        client.send_command(yaw=30, throttle=0.44)
-        sensors = client.get_sensors()
-        print(f"Position: {sensors.gps_position}")
-"""
-
+from .api import QuadSimApi
 from .client import QuadSimClient
-from quadsim.types import SensorData, SimStatus, Telemetry
+from .future import Future
+from .types import SensorData, SimStatus, Telemetry
 from .exceptions import (
     QuadSimError,
     ConnectionError,
@@ -24,13 +28,18 @@ from .exceptions import (
     ProtocolError,
 )
 
-__version__ = "0.1.0"
-
 __all__ = [
+    # High-level API (Phase 10)
+    "QuadSimApi",
+    # Low-level client (Phase 9d)
     "QuadSimClient",
+    # Async handle (Phase 10)
+    "Future",
+    # Data types
     "SensorData",
-    "SimStatus",
     "Telemetry",
+    "SimStatus",
+    # Exceptions
     "QuadSimError",
     "ConnectionError",
     "CommandError",
