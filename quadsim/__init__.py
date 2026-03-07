@@ -1,23 +1,27 @@
 # quadsim/__init__.py
 # QuadSim Python SDK
 #
-# Two-layer API:
-#   QuadSimApi    — High-level: takeoff(), fly_to(), hover(), land()
-#   QuadSimClient — Low-level:  send_command(), get_sensors(), set_mode()
+# Two public classes:
+#   QuadSim  — sim/world entry point, connection owner
+#   Drone    — per-drone control (low-level + high-level on one object)
 #
 # Usage:
-#   from quadsim import QuadSimApi
-#   with QuadSimApi() as api:
-#       api.takeoff(3.0)
-#       api.fly_to(10, 3, 0)
-#       api.land()
+#   from quadsim import QuadSim
+#
+#   with QuadSim() as sim:
+#       drone = sim.drone()
+#       drone.takeoff(3.0)
+#       drone.fly_to(5, 0, 3)
+#       drone.send_command(roll=0, pitch=0, yaw=30, throttle=0.44)
+#       sim.pause()
+#       drone.land()
 
 """QuadSim Python SDK — research-oriented drone simulation control."""
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
-from .api import QuadSimApi
-from .client import QuadSimClient
+from .sim import QuadSim
+from .drone import Drone
 from .future import Future
 from .types import SensorData, SimStatus, Telemetry
 from .exceptions import (
@@ -29,11 +33,9 @@ from .exceptions import (
 )
 
 __all__ = [
-    # High-level API (Phase 10)
-    "QuadSimApi",
-    # Low-level client (Phase 9d)
-    "QuadSimClient",
-    # Async handle (Phase 10)
+    # Public API
+    "QuadSim",
+    "Drone",
     "Future",
     # Data types
     "SensorData",

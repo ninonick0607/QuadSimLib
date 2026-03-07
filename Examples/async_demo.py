@@ -10,11 +10,14 @@ Run with the QuadSim Unity scene playing:
 
 import time
 
-from quadsim import QuadSimApi
+from quadsim import QuadSim
 
 
 def main():
-    with QuadSimApi() as api:
+    with QuadSim() as sim:
+
+        api = sim.drone()
+
         print(f"Connected. Position: {api.get_position()}")
 
         # ── Blocking takeoff first ──────────────────────────────
