@@ -33,18 +33,6 @@ from .types import SimStatus
 class QuadSim:
     """
     Simulation entry point. Owns the connection, provides sim-level control.
-
-    Usage::
-
-        from quadsim import QuadSim
-
-        with QuadSim() as sim:
-            drone = sim.drone()
-            drone.takeoff(3.0)
-            sim.pause()
-            sim.step(10)
-            sim.resume()
-            drone.land()
     """
 
     def __init__(
