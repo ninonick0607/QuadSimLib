@@ -38,6 +38,10 @@ def main():
         # Land
         drone.land(speed=0.5)
 
+        sim.pause()
+        sim.resume()
+        sim.set_time_scale(3)
+        drone.takeoff(altitude=8.0, speed=1.0)
 
     print("Disconnected.")
 
