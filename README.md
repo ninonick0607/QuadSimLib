@@ -1,0 +1,336 @@
+<p align="center">
+  <h1 align="center">QuadSim Python SDK</h1>
+  <p align="center">
+    Research-oriented drone simulation control for Python.
+    <br />
+    High-level flight commands and raw low-level access — one import, one object.
+  </p>
+</p>
+
+<p align="center">
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#quick-example">Quick Example</a> •
+  <a href="#api-overview">API Overview</a> •
+  <a href="#coordinate-frame">Coordinate Frame</a> •
+  <a href="#api-reference">API Reference</a> •
+  <a href="#project-structure">Project Structure</a>
+</p>
+
+---
+
+## What is QuadSim?
+
+QuadSim is a research-oriented quadrotor simulation platform built in Unity, designed for controls research, autonomy development, and sim-to-real workflows. This SDK is the Python interface, it connects to a running QuadSim Unity scene over ZeroMQ and lets you command drones.
+
+**Two layers, one object:**
+
+```
+QuadSim       ← sim/world entry point, owns the connection
+  └─ Drone    ← everything about the drone (low + high level)
+```
+
+You get `takeoff()` and `send_command()` on the same `Drone` object. No juggling between classes to switch from scripted flight to raw control.
+
+---
+
+## Getting Started
+
+### Requirements
+
+- Python 3.8+
+- A running QuadSim Unity scene with the RPC adapter enabled
+
+### Install
+
+From source (recommended during development):
+
+```bash
+git clone https://github.com/ninonick0607/QuadSimLib.git
+cd QuadSimLib
+pip install -e .
+```
+
+This installs `pyzmq` and `msgpack` automatically.
+
+### Verify Connection
+
+```python
+from quadsim import QuadSim
+
+sim = QuadSim()
+sim.connect()
+print(sim.get_status())
+sim.disconnect()
+```
+
+If it prints status info, you're connected.
+
+---
+
+## Quick Example
+
+```python
+from quadsim import QuadSim
+
+with QuadSim() as sim:
+    drone = sim.drone()
+
+    drone.takeoff(altitude=3.0)
+    drone.fly_to(x=5, y=0, z=3)
+    drone.hover(duration=2.0)
+    drone.yaw_to(heading_deg=180)
+    drone.fly_path([(5, 5, 3), (0, 5, 3), (0, 0, 3)])
+    drone.land()
+```
+
+### Mixing High-Level and Low-Level
+
+```python
+with QuadSim() as sim:
+    drone = sim.drone()
+
+    # Scripted takeoff
+    drone.takeoff(3.0)
+
+    # Drop to raw velocity control
+    drone.set_mode("velocity")
+    for _ in range(100):
+        drone.send_command(vx=1.0, vy=0, vz=0, yaw_rate=10)
+        time.sleep(0.02)
+
+    # Back to high-level
+    drone.hover(duration=2.0)
+    drone.land()
+```
+
+### Async Flight with Polling
+
+```python
+with QuadSim() as sim:
+    drone = sim.drone()
+    drone.takeoff(3.0)
+
+    future = drone.fly_to_async(x=10, y=0, z=3, speed=2.0)
+
+    while not future.done:
+        pos = drone.get_position()
+        print(f"Position: ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})")
+        time.sleep(0.5)
+
+    drone.land()
+```
+
+---
+
+## Coordinate Frame
+
+Everything the Python SDK sees is **FLU** (Forward-Left-Up):
+
+| Axis | Direction | Example |
+|------|-----------|---------|
+| **X** | Forward | `fly_to(x=5, ...)` moves forward |
+| **Y** | Left | `fly_to(y=3, ...)` moves left |
+| **Z** | Up | `fly_to(z=3, ...)` = 3 meters altitude |
+
+**Z is always altitude.** This applies to positions, velocities, and all sensor readings. The C# adapter handles all conversions to/from Unity's internal frame automatically.
+
+---
+
+## API Overview
+
+### QuadSim — Sim / World
+
+| Method | Description |
+|--------|-------------|
+| `connect()` | Connect to Unity server |
+| `disconnect()` | Clean disconnect |
+| `drone()` | Get a Drone handle |
+| `get_status()` | Sim time, pause state, authority |
+| `pause()` / `resume()` | Pause/resume simulation |
+| `step(count)` | Advance N physics steps while paused |
+| `set_time_scale(scale)` | Speed up / slow down sim |
+| `reset()` | Reset entire simulation |
+
+### Drone — Flight Control
+
+**High-level (blocking):**
+
+| Method | Description |
+|--------|-------------|
+| `takeoff(altitude, speed)` | Climb and stabilize |
+| `land(speed)` | Descend to ground |
+| `hover(duration)` | Hold position for N seconds |
+| `fly_to(x, y, z, speed, yaw)` | Fly to FLU position |
+| `fly_path(waypoints, speed)` | Follow waypoint sequence |
+| `yaw_to(heading_deg)` | Rotate to heading |
+
+All have `_async` variants that return a `Future`.
+
+**Low-level:**
+
+| Method | Description |
+|--------|-------------|
+| `set_mode(mode)` | Set goal mode (rate, angle, velocity, position, etc.) |
+| `set_controller(ctrl)` | Switch controller (cascade, geometric) |
+| `send_command(...)` | Send raw Axis4 command with named args |
+| `get_sensors()` | Full sensor snapshot (IMU + GPS) |
+| `get_telemetry()` | Controller state + motor outputs |
+| `get_position()` | Quick GPS position read |
+| `get_attitude()` | Quick attitude read |
+| `get_velocity()` | Quick velocity read |
+| `is_airborne()` | Altitude check |
+
+**Resets:**
+
+| Method | Description |
+|--------|-------------|
+| `reset()` | Full drone reset |
+| `reset_pose(x, y, z, ...)` | Teleport to position |
+| `reset_rotation()` | Level the drone |
+| `reset_physics()` | Zero velocities |
+| `reset_controller()` | Clear PID integrators |
+
+**Streaming (PUB/SUB):**
+
+| Method | Description |
+|--------|-------------|
+| `subscribe_sensors(callback, hz)` | Push-based sensor data |
+| `subscribe_telemetry(callback, hz)` | Push-based telemetry |
+| `subscribe(callback, topics, hz)` | Raw topic subscription |
+| `unsubscribe()` | Stop streaming |
+
+---
+
+## API Reference
+
+### send_command Layout
+
+What `x`, `y`, `z`, `w` mean depends on the active mode:
+
+| Mode | x | y | z | w |
+|------|---|---|---|---|
+| **Rate** | roll rate °/s | pitch rate °/s | yaw rate °/s | throttle [0,1] |
+| **Angle** | roll ° | pitch ° | yaw rate °/s | throttle [0,1] |
+| **Velocity** | vx m/s | vy m/s | vz m/s (up+) | yaw rate °/s |
+| **Position** | x m | y m | z m (altitude) | yaw ° |
+
+Named aliases map directly: `roll`→x, `pitch`→y, `yaw`/`yaw_rate`→z/w, `vx`→x, `vy`→y, `vz`→z, `throttle`→w.
+
+### SensorData Fields
+
+```python
+sensors = drone.get_sensors()
+sensors.gps_position        # (x, y, z) FLU, Z = altitude
+sensors.imu_attitude        # (roll, pitch, yaw) degrees
+sensors.imu_vel             # (vx, vy, vz) m/s
+sensors.imu_accel           # (ax, ay, az) m/s²
+sensors.imu_ang_vel         # (wx, wy, wz) rad/s
+sensors.imu_orientation     # (qx, qy, qz, qw) quaternion
+sensors.imu_valid           # bool
+sensors.gps_valid           # bool
+```
+
+### Telemetry Fields
+
+```python
+telem = drone.get_telemetry()
+telem.drone_id              # str
+telem.mode                  # "rate", "angle", "velocity", "position", ...
+telem.controller            # "cascade", "geometric"
+telem.motors                # (FL, FR, BL, BR) in [0, 1]
+telem.desired_rates_deg     # (roll, pitch, yaw) °/s
+telem.desired_angles_deg    # (roll, pitch, yaw) °
+telem.desired_vel           # (vx, vy, vz) m/s
+telem.external_cmd          # (x, y, z, w) raw Axis4
+```
+
+### SimStatus Fields
+
+```python
+status = sim.get_status()
+status.is_paused            # bool
+status.time_scale           # float
+status.sim_time             # float (seconds)
+status.fixed_dt             # float
+status.authority            # "UI", "Internal", "External"
+status.client_connected     # bool
+```
+
+### Tuning Parameters
+
+Set on the `Drone` object before or during flight:
+
+```python
+drone.position_tolerance = 0.5          # meters — arrival threshold
+drone.altitude_tolerance = 0.3          # meters — takeoff/land threshold
+drone.landing_altitude = 0.15           # below this = landed
+drone.default_speed = 2.0              # m/s fallback
+drone.control_loop_hz = 50.0           # SDK tick rate
+drone.default_leg_timeout = 30.0       # seconds per waypoint
+drone.use_velocity_mode_navigation = False  # velocity-mode fly_to fallback
+```
+
+### Exceptions
+
+```python
+from quadsim import QuadSimError, ConnectionError, CommandError, TimeoutError, ProtocolError
+```
+
+| Exception | When |
+|-----------|------|
+| `ConnectionError` | Not connected, connection denied |
+| `CommandError` | Authority rejected, no drone, invalid mode |
+| `TimeoutError` | RPC timeout, flight command timeout |
+| `ProtocolError` | Wire-level serialization issues |
+
+All inherit from `QuadSimError`.
+
+---
+
+## Project Structure
+
+```
+QuadSimLib/
+├── quadsim/                    # SDK package
+│   ├── __init__.py             # Public exports: QuadSim, Drone, Future, types, exceptions
+│   ├── sim.py                  # QuadSim class — sim/world entry point
+│   ├── drone.py                # Drone class — all drone control (low + high level)
+│   ├── _transport.py           # Internal ZMQ/MessagePack transport (not user-facing)
+│   ├── _control_loops.py       # Internal control loop logic for high-level commands
+│   ├── types.py                # SensorData, Telemetry, SimStatus dataclasses
+│   ├── exceptions.py           # QuadSimError hierarchy
+│   └── future.py               # Async Future handle
+├── Examples/
+│   ├── flight_demo.py          # Full flight demo
+│   └── async_demo.py           # Async/Future usage demo
+├── Testing/                    # Low-level integration tests (Phase 9)
+│   ├── quadsim_test_client.py
+│   ├── quadsim_test_commands.py
+│   └── test_high_level.py
+└── pyproject.toml              # Package config — pip install -e .
+```
+
+---
+
+## How It Works
+
+The SDK communicates with QuadSim's Unity runtime over ZeroMQ:
+
+- **REQ/REP** (port 5555) — commands, queries, mode changes
+- **PUB/SUB** (port 5556) — streaming telemetry
+
+Messages are serialized with MessagePack. A background heartbeat thread keeps the connection alive. All of this is managed internally by `_transport.py` — you never touch sockets directly.
+
+The `Drone` object's high-level methods (`takeoff`, `fly_to`, etc.) run Python-side control loops at 50Hz that read sensors and send commands through the same RPC path. This keeps the logic inspectable and modifiable without recompiling Unity.
+
+---
+
+## Related
+
+- **Unity_QuadSim** — The Unity simulation itself: [github.com/ninonick0607/Unity_QuadSim](https://github.com/ninonick0607/Unity_QuadSim)
+
+---
+
+## License
+
+MIT
