@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "quadsim-sdk"
-version = "0.11.0"
+version = "0.11.1"
 description = "Python SDK for QuadSim drone simulation"
 readme = "README.md"
 requires-python = ">=3.8"
