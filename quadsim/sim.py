@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import atexit
 from typing import Optional
 
 from ._transport import Transport
@@ -33,6 +34,23 @@ from .types import SimStatus
 class QuadSim:
     """
     Simulation entry point. Owns the connection, provides sim-level control.
+
+    Recommended usage::
+
+        with QuadSim() as sim:
+            drone = sim.drone()
+            drone.takeoff(3.0)
+            drone.fly_to(5, 0, 3)
+            drone.land()
+        # disconnect() called automatically
+
+    Also supports explicit lifecycle::
+
+        sim = QuadSim()
+        sim.connect()
+        drone = sim.drone()
+        # ... do work ...
+        sim.disconnect()
     """
 
     def __init__(
@@ -53,6 +71,10 @@ class QuadSim:
             heartbeat_interval=heartbeat_interval,
         )
         self._drone: Optional[Drone] = None
+
+        # Step 3: Register atexit handler so even scripts that forget
+        # to call disconnect() get a clean shutdown.
+        atexit.register(self._atexit_disconnect)
 
     # ====================================================================
     # Context Manager
@@ -135,3 +157,23 @@ class QuadSim:
         if self._drone is not None:
             self._drone._cancel_active()
         self._transport.request("reset_simulation")
+
+    # ====================================================================
+    # Internal: Cleanup
+    # ====================================================================
+
+    def _atexit_disconnect(self) -> None:
+        """Best-effort disconnect on interpreter shutdown."""
+        try:
+            if self._transport.connected:
+                self.disconnect()
+        except Exception:
+            pass
+
+    def __del__(self) -> None:
+        """Fallback cleanup. Not reliable, but catches some GC cases."""
+        try:
+            if self._transport.connected:
+                self.disconnect()
+        except Exception:
+            pass

@@ -110,29 +110,32 @@ def make_land_loop(drone: Drone, speed: float) -> Callable[[], bool]:
 
 
 # ============================================================================
-# Hover
+# Hover  (Step 5: now captures and preserves current yaw)
 # ============================================================================
 
 def make_hover_loop(drone: Drone, duration: float) -> Callable[[], bool]:
     """
-    Capture current position, hold it for duration seconds.
+    Capture current position AND heading, hold both for duration seconds.
     """
     import time as _time
 
     mode_set = False
     start_time = None
     hold_pos = None
+    hold_yaw = None
 
     def tick() -> bool:
-        nonlocal mode_set, start_time, hold_pos
+        nonlocal mode_set, start_time, hold_pos, hold_yaw
 
         if not mode_set:
-            hold_pos = drone.get_sensors().gps_position
+            sensors = drone.get_sensors()
+            hold_pos = sensors.gps_position
+            hold_yaw = sensors.imu_attitude[2]  # Current yaw in degrees
             drone.set_mode("position")
             mode_set = True
             start_time = _time.time()
 
-        drone.send_command(x=hold_pos[0], y=hold_pos[1], z=hold_pos[2], w=0)
+        drone.send_command(x=hold_pos[0], y=hold_pos[1], z=hold_pos[2], w=hold_yaw)
         return _time.time() - start_time >= duration
 
     return tick

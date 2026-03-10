@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: quadsim-sdk
-Version: 0.11.1
+Version: 0.12.0
 Summary: Python SDK for QuadSim drone simulation
 Project-URL: Repository, https://github.com/ninonicok0607/QuadSimLib
 Requires-Python: >=3.8

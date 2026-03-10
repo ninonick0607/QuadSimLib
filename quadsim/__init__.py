@@ -12,13 +12,11 @@
 #       drone = sim.drone()
 #       drone.takeoff(3.0)
 #       drone.fly_to(5, 0, 3)
-#       drone.send_command(roll=0, pitch=0, yaw=30, throttle=0.44)
-#       sim.pause()
 #       drone.land()
 
 """QuadSim Python SDK — research-oriented drone simulation control."""
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 from .sim import QuadSim
 from .drone import Drone

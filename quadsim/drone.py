@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -162,6 +163,58 @@ class Drone:
 
         self._transport.request("send_command", params)
 
+    # ── Step 1: Passthrough & Wrench convenience methods ──
+
+    def send_motors(
+        self,
+        fl: float,
+        fr: float,
+        bl: float,
+        br: float,
+    ) -> None:
+        """
+        Send raw motor commands. Automatically sets passthrough mode.
+
+        Each value is a throttle fraction [0..1] for the corresponding motor.
+
+        Args:
+            fl: Front-left motor.
+            fr: Front-right motor.
+            bl: Back-left motor.
+            br: Back-right motor.
+        """
+        self._transport.request("send_command", {
+            "x": fl, "y": fr, "z": bl, "w": br,
+            "mode": "passthrough",
+        })
+
+    def send_wrench(
+        self,
+        tx: float = 0.0,
+        ty: float = 0.0,
+        tz: float = 0.0,
+        thrust: float = 0.0,
+    ) -> None:
+        """
+        Send body torque + vertical thrust. Automatically sets wrench mode.
+
+        The C# controller reads these as:
+            torque = (tx, ty, tz) around body axes
+            force  = (0, 0, thrust) along body Z (vertical)
+
+        For hover at 1.28 kg: thrust ≈ mass × g ≈ 12.56 N.
+
+        Args:
+            tx: Torque around body X axis (Nm).
+            ty: Torque around body Y axis (Nm).
+            tz: Torque around body Z axis (Nm).
+            thrust: Vertical thrust force (N).
+        """
+        self._transport.request("send_command", {
+            "x": tx, "y": ty, "z": tz, "w": thrust,
+            "mode": "wrench",
+        })
+
     # ====================================================================
     # Low-Level: Sensors & Telemetry
     # ====================================================================
@@ -192,13 +245,39 @@ class Drone:
         return pos[2] > self.landing_altitude
 
     # ====================================================================
-    # Low-Level: Resets
+    # Low-Level: Resets  (Step 2b: ergonomic reset with position/yaw)
     # ====================================================================
 
-    def reset(self) -> None:
-        """Full drone reset (pose + physics + controller)."""
+    def reset(
+        self,
+        position: Optional[Tuple[float, float, float]] = None,
+        yaw: Optional[float] = None,
+    ) -> None:
+        """
+        Reset the drone. Cancels any active async command first.
+
+        Args:
+            position: Optional (x, y, z) in FLU to reset to.
+                      None = reset to spawn origin.
+            yaw: Optional heading in degrees. None = zero yaw.
+                 Only used when position is provided.
+        """
         self._cancel_active()
-        self._transport.request("reset_all")
+
+        if position is not None:
+            params: Dict[str, Any] = {
+                "x": position[0],
+                "y": position[1],
+                "z": position[2],
+            }
+            if yaw is not None:
+                # Convert yaw degrees to quaternion (rotation around Y in Unity Y-up)
+                rad = math.radians(yaw) / 2.0
+                params["qw"] = math.cos(rad)
+                params["qy"] = math.sin(rad)
+            self._transport.request("reset_pose", params)
+        else:
+            self._transport.request("reset_all")
 
     def reset_pose(
         self,
@@ -210,7 +289,7 @@ class Drone:
         qz: float = 0.0,
         qw: float = 1.0,
     ) -> None:
-        """Teleport the drone to a specific pose."""
+        """Teleport the drone to a specific pose (raw quaternion)."""
         self._transport.request("reset_pose", {
             "x": x, "y": y, "z": z,
             "qx": qx, "qy": qy, "qz": qz, "qw": qw,
@@ -309,7 +388,7 @@ class Drone:
 
     def hover(self, duration: float = 5.0) -> None:
         """
-        Hold current position for duration seconds.
+        Hold current position and heading for duration seconds.
 
         Args:
             duration: Seconds to hold.
@@ -520,9 +599,14 @@ class Drone:
             future._join(timeout=5.0)
 
     def _safe_position_hold(self) -> None:
+        """Capture current position + yaw and send a position-hold command."""
         try:
             sensors = self.get_sensors()
             pos = sensors.gps_position
-            self.send_command(x=pos[0], y=pos[1], z=pos[2], w=0.0, mode="position")
+            current_yaw = sensors.imu_attitude[2]
+            self.send_command(
+                x=pos[0], y=pos[1], z=pos[2], w=current_yaw,
+                mode="position",
+            )
         except Exception:
             pass
