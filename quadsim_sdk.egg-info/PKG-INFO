@@ -1,3 +1,13 @@
+Metadata-Version: 2.4
+Name: quadsim-sdk
+Version: 0.11.0
+Summary: Python SDK for QuadSim drone simulation
+Project-URL: Repository, https://github.com/ninonicok0607/QuadSimLib
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pyzmq>=25.0
+Requires-Dist: msgpack>=1.0
+
 <p align="center">
   <h1 align="center">QuadSim Python SDK</h1>
   <p align="center">
@@ -42,12 +52,7 @@ You get `takeoff()` and `send_command()` on the same `Drone` object. No juggling
 
 ### Install
 
-Pip:
-```bash
-pip install quadsim-sdk
-```
-
-From source:
+From source (recommended during development):
 
 ```bash
 git clone https://github.com/ninonick0607/QuadSimLib.git
